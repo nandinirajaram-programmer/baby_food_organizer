@@ -203,7 +203,7 @@ function History() {
 
 // ============ Favorites Component ============
 function Favorites({ onSuccess }) {
-  const [data, setData] = useState(getData());
+  const [data] = useState(getData());
 
   const favorites = data.filter(item => item.isFavorite);
 
@@ -264,7 +264,7 @@ function Favorites({ onSuccess }) {
 
 // ============ Allergies Component ============
 function Allergies() {
-  const [data, setData] = useState(getData());
+  const [data] = useState(getData());
 
   const allergens = data.filter(item => item.isAllergen);
 
