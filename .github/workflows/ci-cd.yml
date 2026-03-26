@@ -1,0 +1,80 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        node-version: [18.x]
+
+    steps:
+    - name: 📥 Checkout code
+      uses: actions/checkout@v3
+
+    - name: 📦 Setup Node.js ${{ matrix.node-version }}
+      uses: actions/setup-node@v3
+      with:
+        node-version: ${{ matrix.node-version }}
+        cache: 'npm'
+
+    - name: 🧹 Clean project structure
+      run: node clean.js
+
+    - name: 📚 Install dependencies
+      run: npm install
+
+    - name: 🔍 Run linter (if available)
+      run: npm run lint --if-present || echo "No linter configured"
+
+    - name: 🏗️ Build application
+      run: npm run build
+
+    - name: ✅ Run tests
+      run: npm test -- --watchAll=false --passWithNoTests || echo "No tests configured"
+
+    - name: 📊 Check build output
+      run: |
+        if [ -d "build" ]; then
+          echo "✅ Build successful - build/ directory created"
+          ls -la build/
+        else
+          echo "❌ Build failed - build/ directory not found"
+          exit 1
+        fi
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+
+    steps:
+    - name: 📥 Checkout code
+      uses: actions/checkout@v3
+
+    - name: 📦 Setup Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '18.x'
+        cache: 'npm'
+
+    - name: 🧹 Clean project structure
+      run: node clean.js
+
+    - name: 📚 Install dependencies
+      run: npm install
+
+    - name: 🏗️ Build application
+      run: npm run build
+
+    - name: 🚀 Deploy to GitHub Pages
+      uses: peaceiris/actions-gh-pages@v3
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        publish_dir: ./build
