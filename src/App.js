@@ -1,8 +1,29 @@
 import React, { useState, useEffect } from 'react';
 
 // ============ Utility Functions ============
-const getData = () => JSON.parse(localStorage.getItem('babyFoodData')) || [];
-const saveData = (data) => localStorage.setItem('babyFoodData', JSON.stringify(data));
+const getData = () => {
+  try {
+    const data = localStorage.getItem('babyFoodData');
+    return data ? JSON.parse(data) : [];
+  } catch (error) {
+    console.error('Error reading food data:', error);
+    return [];
+  }
+};
+
+const saveData = (data) => {
+  try {
+    localStorage.setItem('babyFoodData', JSON.stringify(data));
+  } catch (error) {
+    console.error('Error saving food data:', error);
+    alert('Failed to save data. Your storage may be full.');
+  }
+};
+
+// Generate unique ID with timestamp + random component
+const generateUniqueId = () => {
+  return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+};
 
 const formatTime = (isoString) => {
   const date = new Date(isoString);
@@ -36,15 +57,17 @@ function AddFood({ onSuccess, showSuccess }) {
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (!formData.foodName.trim() || !formData.foodTime) {
+    const trimmedName = formData.foodName.trim();
+    
+    if (!trimmedName || !formData.foodTime) {
       alert('Please fill in all required fields');
       return;
     }
 
     const data = getData();
     data.push({
-      id: Date.now(),
-      name: formData.foodName,
+      id: generateUniqueId(),
+      name: formData.foodName.trim(),
       timestamp: new Date(formData.foodTime).toISOString(),
       portion: formData.portionAmount ? `${formData.portionAmount} ${formData.portionUnit}` : 'Not specified',
       isAllergen: formData.isAllergen,
@@ -68,7 +91,7 @@ function AddFood({ onSuccess, showSuccess }) {
   };
 
   return (
-    <div className="tab-content active">
+    <div className="tab-content">
       {showSuccess && (
         <div className="success-message show">✓ Food added successfully!</div>
       )}
@@ -156,8 +179,12 @@ function AddFood({ onSuccess, showSuccess }) {
 }
 
 // ============ History Component ============
-function History() {
+function History({ refreshKey }) {
   const [data, setData] = useState(getData());
+
+  useEffect(() => {
+    setData(getData());
+  }, [refreshKey]);
 
   const deleteFood = (id) => {
     if (window.confirm('Delete this entry?')) {
@@ -169,7 +196,7 @@ function History() {
 
   if (data.length === 0) {
     return (
-      <div className="tab-content active">
+      <div className="tab-content">
         <div className="empty-state">
           <p>No food entries yet</p>
           <p>Add your first food entry to get started!</p>
@@ -181,7 +208,7 @@ function History() {
   const sortedData = [...data].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
 
   return (
-    <div className="tab-content active">
+    <div className="tab-content">
       {sortedData.map(item => (
         <div key={item.id} className="food-item">
           <div className="food-name">{item.name}</div>
@@ -202,8 +229,12 @@ function History() {
 }
 
 // ============ Favorites Component ============
-function Favorites({ onSuccess }) {
-  const [data] = useState(getData());
+function Favorites({ onSuccess, refreshKey }) {
+  const [data, setData] = useState(getData());
+
+  useEffect(() => {
+    setData(getData());
+  }, [refreshKey]);
 
   const favorites = data.filter(item => item.isFavorite);
 
@@ -219,7 +250,7 @@ function Favorites({ onSuccess }) {
   const addFavoriteQuickly = (name, portion) => {
     const newData = getData();
     newData.push({
-      id: Date.now(),
+      id: generateUniqueId(),
       name,
       timestamp: new Date().toISOString(),
       portion: portion || 'Not specified',
@@ -228,12 +259,13 @@ function Favorites({ onSuccess }) {
       markedAsFed: true,
     });
     saveData(newData);
+    setData(newData);
     onSuccess();
   };
 
   if (favorites.length === 0) {
     return (
-      <div className="tab-content active">
+      <div className="tab-content">
         <div className="empty-state">
           <p>No favorite foods yet</p>
           <p>Mark foods as favorites when adding them!</p>
@@ -243,7 +275,7 @@ function Favorites({ onSuccess }) {
   }
 
   return (
-    <div className="tab-content active">
+    <div className="tab-content">
       <div className="favorites-grid">
         {Object.entries(grouped).map(([name, favData]) => (
           <div
@@ -263,8 +295,12 @@ function Favorites({ onSuccess }) {
 }
 
 // ============ Allergies Component ============
-function Allergies() {
-  const [data] = useState(getData());
+function Allergies({ refreshKey }) {
+  const [data, setData] = useState(getData());
+
+  useEffect(() => {
+    setData(getData());
+  }, [refreshKey]);
 
   const allergens = data.filter(item => item.isAllergen);
 
@@ -278,7 +314,7 @@ function Allergies() {
 
   if (allergens.length === 0) {
     return (
-      <div className="tab-content active">
+      <div className="tab-content">
         <div className="empty-state">
           <p>No allergens marked yet</p>
           <p>Mark foods as allergens to track them here!</p>
@@ -288,7 +324,7 @@ function Allergies() {
   }
 
   return (
-    <div className="tab-content active">
+    <div className="tab-content">
       {Object.entries(grouped).map(([name, items]) => (
         <div key={name} className="food-item" style={{ borderLeftColor: '#ff6b6b' }}>
           <div className="food-name">⚠️ {name}</div>
@@ -307,9 +343,11 @@ function Allergies() {
 export default function App() {
   const [activeTab, setActiveTab] = useState('add');
   const [showSuccess, setShowSuccess] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   const showSuccessMessage = () => {
     setShowSuccess(true);
+    setRefreshKey(prev => prev + 1);
     setTimeout(() => setShowSuccess(false), 3000);
   };
 
@@ -350,9 +388,9 @@ export default function App() {
       {activeTab === 'add' && (
         <AddFood onSuccess={showSuccessMessage} showSuccess={showSuccess} />
       )}
-      {activeTab === 'view' && <History />}
-      {activeTab === 'favorites' && <Favorites onSuccess={showSuccessMessage} />}
-      {activeTab === 'allergies' && <Allergies />}
+      {activeTab === 'view' && <History refreshKey={refreshKey} />}
+      {activeTab === 'favorites' && <Favorites onSuccess={showSuccessMessage} refreshKey={refreshKey} />}
+      {activeTab === 'allergies' && <Allergies refreshKey={refreshKey} />}
     </div>
   );
 }
